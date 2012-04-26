@@ -1,0 +1,111 @@
+package gis_project;
+
+import java.util.*;
+
+public class KDTreeTestBenchmark {
+
+    // compares RUNNING TIME of tree search to brute force
+    public static void main(String[] args) {
+        
+        int k = 3;
+        
+        int numDps = 1310720;
+        DataSet ds = new DataSet(numDps, 4);
+        for (int i = 0; i < numDps; i++) {
+            int id = i;
+            int t1 = 2009;
+            int t2 = ((int) Math.floor(Math.random() * (12))) + 1;
+            int t3 = ((int) Math.floor(Math.random() * (28))) + 1;
+            int[] time = {t1, t2, t3};
+            double x = Math.floor(Math.random() * (1001));
+            double y = Math.floor(Math.random() * (1001));
+            double measurement = Math.floor(Math.random() * (101));
+            DataPoint dp = new DataPoint(id, time, x, y, measurement);
+            ds.set(i, dp);
+        }
+        ds.setAllT();
+        int nnn = 9;
+        
+
+                long startTime2 = System.currentTimeMillis();
+        System.out.println("\nStart Serial tree build: " + (System.currentTimeMillis()-startTime2) + " ms");
+        KDTree testTreeSerial = new KDTree(ds);
+        System.out.println("Finish Serial tree build: " + (System.currentTimeMillis()-startTime2) + " ms\n");
+      
+        
+
+        
+        long startTime = System.currentTimeMillis();
+        System.out.println("\nStart Concurrent tree build: " + (System.currentTimeMillis()-startTime) + " ms");
+        KDTreeParallel testTree = new KDTreeParallel(ds);
+        System.out.println("Finish Concurrent tree build: " + (System.currentTimeMillis()-startTime) + " ms\n");
+        
+        
+
+        
+        
+        if (true) return;
+        int numTestPoints = 1000;
+        
+        System.out.println("Start neighbor search (partitioned): " + (System.currentTimeMillis()-startTime) + " ms");
+        for (int i = 0; i < numTestPoints; i++) {
+            int id = -1;
+            int t1 = 2009;
+            int t2 = ((int) Math.floor(Math.random() * (12))) + 1;
+            int t3 = ((int) Math.floor(Math.random() * (28))) + 1;
+            int[] time = {t1, t2, t3};
+            double x = Math.floor(Math.random() * (1001));
+            double y = Math.floor(Math.random() * (1001));
+            double measurement = -1;
+            DataPoint tp = new DataPoint(id, time, x, y, measurement);
+            DataSet ts = new DataSet(1, 4);
+            ts.set(0, tp);
+            ts.setAllT();
+            
+            Neighbor[] nN = testTree.nearestNeighbors(tp, nnn);
+            DataPoint[] nn = new DataPoint[nnn];
+            for (int j = 0; j < nnn; j++) {
+                nn[j] = (nN[j].getDp());
+            }  
+        }        
+        System.out.println("Finish neighbor search (partitioned): " + (System.currentTimeMillis()-startTime) + " ms\n");
+        
+        System.out.println("Start neighbor search (brute force): " + (System.currentTimeMillis()-startTime) + " ms");
+        for (int i = 0; i < numTestPoints; i++) {
+            int id = -1;
+            int t1 = 2009;
+            int t2 = ((int) Math.floor(Math.random() * (12))) + 1;
+            int t3 = ((int) Math.floor(Math.random() * (28))) + 1;
+            int[] time = {t1, t2, t3};
+            double x = Math.floor(Math.random() * (1001));
+            double y = Math.floor(Math.random() * (1001));
+            double measurement = -1;
+            DataPoint tp = new DataPoint(id, time, x, y, measurement);
+            DataSet ts = new DataSet(1, 4);
+            ts.set(0, tp);
+            ts.setAllT();
+            
+            DataPoint[] nnBF = bruteForce(ds, tp, nnn);
+        }
+        System.out.println("Finish neighbor search (brute force): " + (System.currentTimeMillis()-startTime) + " ms\n");
+    }
+    
+    // for result comparison and performance benchmarking against tree search only
+    public static DataPoint[] bruteForce(DataSet ds, DataPoint tp, int nnn) {
+        double minDistance = 999999999;
+        ArrayList<Neighbor> nearest = new ArrayList<Neighbor>();
+        for (int i = 0; i < ds.getSize(); i++) {
+            double dx = ds.getX(i) - tp.getX();
+            double dy = ds.getY(i) - tp.getY();
+            double dt = ds.getT(i) - tp.getT();
+            double distSq = Math.sqrt(dx*dx + dy*dy + dt*dt);
+            nearest.add(new Neighbor(ds.get(i), distSq));
+        }
+        Neighbor.sort(nearest, nnn);
+        DataPoint[] dps = new DataPoint[nnn];
+        for (int i = 0; i < nnn; i++) {
+            dps[i] = (nearest.get(i)).getDp();
+        }
+        return dps;
+    }
+}

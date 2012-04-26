@@ -1,0 +1,100 @@
+Creating Dataset with 100 datapoints!
+
+Start Serial tree build: 0 ms
+Finish Serial tree build: 3 ms
+
+Test neighbor search using 10000!
+Start neighbor search (partitioned): 0 ms
+Finish neighbor search (partitioned): 320 ms
+
+Start neighbor search (brute force): 0 ms
+Finish neighbor search (brute force): 204 ms
+
+Start neighbor search (brute force2): 0 ms
+Finish neighbor search (brute force2): 10380 ms
+
+------------------------------------
+
+
+Creating Dataset with 1000 datapoints!
+
+Start Serial tree build: 0 ms
+Finish Serial tree build: 34 ms
+
+Test neighbor search using 10000!
+Start neighbor search (partitioned): 0 ms
+Finish neighbor search (partitioned): 795 ms
+
+Start neighbor search (brute force): 0 ms
+Finish neighbor search (brute force): 1663 ms
+
+Start neighbor search (brute force2): 0 ms
+Finish neighbor search (brute force2): 15187 ms
+
+------------------------------------
+
+
+Creating Dataset with 10000 datapoints!
+
+Start Serial tree build: 0 ms
+Finish Serial tree build: 114 ms
+
+Test neighbor search using 10000!
+Start neighbor search (partitioned): 0 ms
+Finish neighbor search (partitioned): 1565 ms
+
+Start neighbor search (brute force): 0 ms
+Finish neighbor search (brute force): 20605 ms
+
+Start neighbor search (brute force2): 0 ms
+Finish neighbor search (brute force2): 51472 ms
+
+------------------------------------
+
+
+Creating Dataset with 100000 datapoints!
+
+Start Serial tree build: 0 ms
+Finish Serial tree build: 409 ms
+
+Test neighbor search using 10000!
+Start neighbor search (partitioned): 0 ms
+Finish neighbor search (partitioned): 3250 ms
+
+Start neighbor search (brute force): 0 ms
+Finish neighbor search (brute force): 336581 ms
+
+Start neighbor search (brute force2): 0 ms
+Finish neighbor search (brute force2): 278308 ms
+
+------------------------------------
+
+
+Creating Dataset with 1000000 datapoints!
+
+Start Serial tree build: 0 ms
+Finish Serial tree build: 4744 ms
+
+Test neighbor search using 10000!
+Start neighbor search (partitioned): 0 ms
+Finish neighbor search (partitioned): 6532 ms
+
+Start neighbor search (brute force): 0 ms
+Finish neighbor search (brute force): 5668397 ms
+
+Start neighbor search (brute force2): 0 ms
+Finish neighbor search (brute force2): 1884240 ms
+
+------------------------------------
+
+
+Creating Dataset with 10000000 datapoints!
+
+Start Serial tree build: 0 ms
+Finish Serial tree build: 77712 ms
+
+Test neighbor search using 10000!
+Start neighbor search (partitioned): 0 ms
+Finish neighbor search (partitioned): 18263 ms
+
+Start neighbor search (brute force): 0 ms
