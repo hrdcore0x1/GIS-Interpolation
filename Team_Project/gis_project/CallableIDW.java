@@ -33,6 +33,7 @@ public class CallableIDW implements Callable<DataSet> {
             Neighbor[] nn = inputTree.nearestNeighbors(tp, nnn);
             double interpVal = IDW.calc(tp, nn, exp);
             tp.setMeasurement(interpVal);
+            PM25GUI.percentCompleteIncrement1();
         }
         return ds;
     }

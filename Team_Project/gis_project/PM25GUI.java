@@ -39,12 +39,12 @@ public class PM25GUI {
     private boolean locationsProcessed = false;
     private boolean showObsSites = true;
     // output data
-    private volatile int outputSize;
+    private static int outputSize;
     private int nnn = 0; // IDW number nearest neighbors
     private double exp = 0; // IDW exponent
     private DataSet outputData;
     private DataSet outputDataScaled;
-    private double percentComplete1;
+    private static double percentComplete1;
     private boolean outputComputed = false;
     // raster data
     private DataSet rasterData;
@@ -107,7 +107,7 @@ public class PM25GUI {
     private JPanel statusPanel5;
     private JLabel statusLabel5;
     private JPanel statusPanel6;
-    private JLabel statusLabel6;
+    private static JLabel statusLabel6;
     private JPanel aniPanelGrid;
     private JPanel aniPanelGridTop;
     private JLabel aniLabelDesc;
@@ -145,6 +145,15 @@ public class PM25GUI {
             }
         });
     }
+    
+    public static void percentCompleteIncrement1() {
+    percentComplete1 += (1.0 / outputSize) * 100.0;
+    SwingUtilities.invokeLater(new Runnable() {
+        public void run() {
+            statusLabel6.setText("[" + String.format("%2.1f", percentComplete1) + "% complete]");
+        }
+    });
+}
 
     public void createAndShow() {
         mainFrame = new JFrame("PM25 Interpolation and Visualization");
@@ -1070,26 +1079,11 @@ public class PM25GUI {
                     partitionLen = (start + partitionSize >= outputSize) ? outputSize : start + partitionSize + 1;
                     DataSet ds = DataSet.copyOfRange(outputData, start, partitionLen);
                     Callable<DataSet> worker = new CallableIDW(inputTree, ds, nnn, exp);
-                    //System.out.println("Starting thread " + i + ": [" + start + " - " + partitionLen + "]");
+                    System.out.println("Starting thread " + i + ": [" + start + " - " + partitionLen + "]");
                     Future<DataSet> f = executor.submit(worker);
                     futureList.add(f);
                 }
-                /*
-                 * Tried to optimize returning the datasets from threads but
-                 * lost a few hundred ms int trying = 0; int maxFutures =
-                 * futureList.size(); int current = 0; Future<DataSet> f;
-                 * outputData = new DataSet(0, outputData.getTimeDomain()); do{
-                 * current = trying % procs; f = futureList.get(current); try {
-                 * outputData = DataSet.combineDataSet(outputData,f.get());
-                 * futureList.remove(current); procs--; } catch
-                 * (InterruptedException ex) {
-                 * Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE,
-                 * null, ex); } catch (ExecutionException ex) {
-                 * Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE,
-                 * null, ex); }finally{ trying++; }
-                 *
-                 * }while(!futureList.isEmpty());
-                 */
+
                 //lets get our data back from the threads...
                 int maxFutures = futureList.size();
 
@@ -1109,7 +1103,7 @@ public class PM25GUI {
                     try {
                         // System.out.println("Waiting on thread " + i);
                         outputData = DataSet.combineDataSet(outputData, f.get());
-                        //System.out.println("Thread " + i + " is done. size=" + outputData.getData().length);
+                        System.out.println("Thread " + i + " is done. size=" + outputData.getData().length);
 
 
                     } catch (InterruptedException ex) {
@@ -1119,54 +1113,6 @@ public class PM25GUI {
                     }
                 }
 
-                futureList.clear();
-                
-                for (int i = 0, start = 0; i < procs; i++, start += partitionSize + 1) {
-                    partitionLen = (start + partitionSize >= outputSize) ? outputSize : start + partitionSize + 1;
-                    DataSet ds = DataSet.copyOfRange(outputData, start, partitionLen);
-                    Callable<DataSet> worker = new CallableScaledData(ds, xyScale, yOffset, xOffset);
-                    //System.out.println("Starting thread " + i + ": [" + start + " - " + partitionLen + "]");
-                    f = executor.submit(worker);
-                    futureList.add(f);
-                }
-
-                maxFutures = futureList.size();
-
-                f = futureList.get(0);
-                try {
-                    //  System.out.println("Waiting for thread 0.");
-                    outputDataScaled = f.get();
-                    //   System.out.println("Thread 0 is done. size=" + outputData.getData().length);
-
-                } catch (InterruptedException ex) {
-                    Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE, null, ex);
-                } catch (ExecutionException ex) {
-                    Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE, null, ex);
-                }
-                for (int i = 1; i < maxFutures; i++) {
-                    f = futureList.get(i);
-                    try {
-                        // System.out.println("Waiting on thread " + i);
-                        outputDataScaled = DataSet.combineDataSet(outputDataScaled, f.get());
-                        //System.out.println("Thread " + i + " is done. size=" + outputData.getData().length);
-                    } catch (InterruptedException ex) {
-                        System.out.println(ex.toString());
-                    } catch (ExecutionException ex) {
-                        System.out.println(ex.toString());
-                    }
-                }
-                
-/*
-                outputDataScaled = new DataSet(outputData);
-                for (int j = 0; j < outputSize; j++) {
-                    outputDataScaled.get(j).setX(outputDataScaled.get(j).getX() * xyScale);
-                    outputDataScaled.get(j).setY(outputDataScaled.get(j).getY() * xyScale);
-                    outputDataScaled.get(j).setX(outputDataScaled.get(j).getX() + xOffset);
-                    outputDataScaled.get(j).setY(outputDataScaled.get(j).getY() + yOffset);
-                }
-  */
-                long totalTime = System.currentTimeMillis() - startTime;
-                System.out.println("Time: " + totalTime);
                 return null;
             }
 
