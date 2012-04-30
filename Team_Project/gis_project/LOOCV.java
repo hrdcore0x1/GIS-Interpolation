@@ -2,19 +2,21 @@ package gis_project;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import javax.swing.*;
 
 public class LOOCV {
 
-    private static int[] n = {3,4,5,6,7};
-    private static double[] e  = {1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0};
-    
+    public static int[] n = {3, 4, 5, 6, 7};
+    public static double[] e = {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0};
     private static double percentComplete;
-    
-    public static double[][] calc(DataSet ds, KDTree tree, final JLabel status) {
-        
-        double[][] va = new double[ds.getSize()][n.length*e.length];
-        
+
+    public static double[][] calc(DataSet ds, KDTree tree, final JLabel status, ExecutorService es) {
+
+        double[][] va = new double[ds.getSize()][n.length * e.length];
+
         BufferedWriter bw = null;
         try {
             bw = new BufferedWriter(new FileWriter(new File("loocv_idw.txt")));
@@ -29,9 +31,34 @@ public class LOOCV {
                 }
             }
             bw.write("\n");
+
+            int size = ds.getSize();
+            int partitionSize = (int) Math.ceil(size / PM25GUI.procs);
+            int partitionLen = 0;
+            ArrayList<Future> futureList = new ArrayList<Future>();
+            PM25GUI.percent3Size = ds.getSize();
+            Future f;
+            for (int i = 0, start = 0; i < PM25GUI.procs; i++, start += partitionSize + 1) {
+                partitionLen = (start + partitionSize >= size) ? size : start + partitionSize + 1;
+                DataSet ds2 = DataSet.copyOfRange(ds, start, partitionLen);
+                Runnable worker = new RunnableLOOCV(size, bw, tree, va);
+                f = es.submit(worker);
+                futureList.add(f);
+            }
+            
+            while (!futureList.isEmpty()){
+                f = futureList.get(0);
+                if (f.isDone()) futureList.remove(0);
+            }
+
+
+
+
+
             for (int i = 0; i < ds.getSize(); i++) {
-                percentComplete = ((double)i/(double)ds.getSize()) * 100;
+                percentComplete = ((double) i / (double) ds.getSize()) * 100;
                 SwingUtilities.invokeLater(new Runnable() {
+
                     public void run() {
                         status.setText("<html>Validating results...<br/>[" + String.format("%2.1f", percentComplete) + "% complete]");
                     }
@@ -39,18 +66,19 @@ public class LOOCV {
                 DataPoint tp = ds.get(i);
                 bw.write(String.format("%-9.1f", tp.getMeasurement()));
                 for (int j = 0; j < n.length; j++) {
-                    Neighbor[] na = tree.nearestNeighbors(tp, n[j]+1); // find n+1 neighbors since "closest" neighbor will be self
+                    Neighbor[] na = tree.nearestNeighbors(tp, n[j] + 1); // find n+1 neighbors since "closest" neighbor will be self
                     na = Arrays.copyOfRange(na, 1, na.length);         // remove first neighbor (self)
                     for (int k = 0; k < e.length; k++) {
                         double interpVal = IDW.calc(tp, na, e[k]);
                         bw.write(String.format("%-7.1f", interpVal));
-                        va[i][j*e.length + k] = interpVal;
+                        va[i][j * e.length + k] = interpVal;
                     }
                 }
                 bw.write("\n");
             }
             bw.close();
             SwingUtilities.invokeLater(new Runnable() {
+
                 public void run() {
                     status.setText("<html>Results written to<br/>loocv_idw.txt</html>");
                 }
@@ -60,16 +88,16 @@ public class LOOCV {
         }
         return va;
     }
-    
+
     public static void errorCalc(DataSet ds, double[][] loocv, final JLabel status) {
-    
+
         double[] mae = new double[loocv[0].length];
         double[] mse = new double[loocv[0].length];
         double[] rmse = new double[loocv[0].length];
         double[] mare = new double[loocv[0].length];
         double[] msre = new double[loocv[0].length];
         double[] rmsre = new double[loocv[0].length];
-        
+
         for (int i = 0; i < mae.length; i++) {
             mae[i] = 0;
         }
@@ -88,7 +116,7 @@ public class LOOCV {
         for (int i = 0; i < rmsre.length; i++) {
             rmsre[i] = 0;
         }
-        
+
         BufferedWriter bw = null;
         try {
             bw = new BufferedWriter(new FileWriter(new File("error_statistics_idw.txt")));
@@ -103,10 +131,11 @@ public class LOOCV {
                 }
             }
             bw.write("\n");
-            
-            for (int i = 0; i < ds.getSize() ; i++) {
-                percentComplete = ((double)i/(double)ds.getSize()) * 100;
+
+            for (int i = 0; i < ds.getSize(); i++) {
+                percentComplete = ((double) i / (double) ds.getSize()) * 100;
                 SwingUtilities.invokeLater(new Runnable() {
+
                     public void run() {
                         status.setText("<html>Calculating error...<br/>[" + String.format("%2.1f", percentComplete) + "% complete]");
                     }
@@ -157,6 +186,7 @@ public class LOOCV {
             bw.write("\n");
             bw.close();
             SwingUtilities.invokeLater(new Runnable() {
+
                 public void run() {
                     status.setText("<html>Results written to<br/>error_statistics_idw.txt</html>");
                 }

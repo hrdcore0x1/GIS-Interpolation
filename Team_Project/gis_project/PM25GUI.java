@@ -49,14 +49,15 @@ public class PM25GUI {
     // raster data
     private DataSet rasterData;
     private DataSet rasterDataScaled;
-    private int rasterSetSize;
+    private static int rasterSetSize;
     boolean rasterComputed = false;
     private double rasterCellSizeScaled = 0;
     // animation
     private boolean animate = false;
     private boolean animationComplete = false;
     private int animationDay = 0;
-    private double percentComplete2;
+    private static double percentComplete2;
+    private static double percentComplete3;
     // validation
     private boolean validationComplete = false;
     private double[][] va;
@@ -114,14 +115,14 @@ public class PM25GUI {
     private JComboBox<String> rasterDropdown;
     private JButton aniButtonBox;
     private JButton aniButton;
-    private JPanel aniPanelStatusBox;
-    private JLabel aniLabelStatus;
+    private static JPanel aniPanelStatusBox;
+    private static JLabel aniLabelStatus;
     private JPanel validatePanelGrid;
     private JLabel validateLabelDesc;
     private JButton validateButtonBox;
     private JButton validateButton;
     private JPanel validatePanelStatusBox;
-    private JLabel validateLabelStatus;
+    private static JLabel validateLabelStatus;
     private JPanel measurePanelGrid;
     private JLabel measureLabelDesc;
     private JButton measureButtonBox;
@@ -135,6 +136,10 @@ public class PM25GUI {
     private JPanel customQueryPanelStatusBox;
     private JLabel customQueryLabelStatus;
     private MapPanel mapPanel = new MapPanel();
+    public static int procs = Runtime.getRuntime().availableProcessors();
+    private ExecutorService executor = Executors.newFixedThreadPool(procs);
+    
+    public static int percent3Size;
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -145,15 +150,39 @@ public class PM25GUI {
             }
         });
     }
-    
+
     public static void percentCompleteIncrement1() {
-    percentComplete1 += (1.0 / outputSize) * 100.0;
-    SwingUtilities.invokeLater(new Runnable() {
-        public void run() {
-            statusLabel6.setText("[" + String.format("%2.1f", percentComplete1) + "% complete]");
-        }
-    });
-}
+        percentComplete1 += (1.0 / outputSize) * 100.0;
+        SwingUtilities.invokeLater(new Runnable() {
+
+            @Override
+            public void run() {
+                statusLabel6.setText("[" + String.format("%2.1f", percentComplete1) + "% complete]");
+            }
+        });
+    }
+
+    public static void percentComplete2Increment1() {
+        percentComplete2 += (1.0 / (double) rasterSetSize) * 100;
+        SwingUtilities.invokeLater(new Runnable() {
+
+            @Override
+            public void run() {
+                aniPanelStatusBox.setBackground(Color.yellow);
+                aniLabelStatus.setText("<html>Building raster data set...<br/>[" + String.format("%2.1f", percentComplete2) + "% complete]");
+            }
+        });
+    }
+    
+    public static void percentComplete3Increment1(){
+            percentComplete3 += (1.0 / percent3Size) * 100;
+            
+                SwingUtilities.invokeLater(new Runnable() {
+                    public void run() {
+                        validateLabelStatus.setText("<html>Validating results...<br/>[" + String.format("%2.1f", percentComplete3) + "% complete]");
+                    }
+                });
+    }
 
     public void createAndShow() {
         mainFrame = new JFrame("PM25 Interpolation and Visualization");
@@ -1062,14 +1091,6 @@ public class PM25GUI {
             @Override
             public Void doInBackground() {
 
-                //System.out.println("Initial DS len/size/outputsize: " + outputData.getData().length + "/" + outputData.getSize() + "/" + outputSize);
-                long startTime = System.currentTimeMillis();
-                //get number of processors
-                int procs = Runtime.getRuntime().availableProcessors();
-
-                //create a ExecutorService with fixed Thread count set to # of procs
-                ExecutorService executor = Executors.newFixedThreadPool(procs);
-
                 int partitionSize = (int) Math.ceil(outputSize / procs);
                 int partitionLen = 0;
                 ArrayList<Future<DataSet>> futureList = new ArrayList<Future<DataSet>>();
@@ -1079,40 +1100,31 @@ public class PM25GUI {
                     partitionLen = (start + partitionSize >= outputSize) ? outputSize : start + partitionSize + 1;
                     DataSet ds = DataSet.copyOfRange(outputData, start, partitionLen);
                     Callable<DataSet> worker = new CallableIDW(inputTree, ds, nnn, exp);
-                    System.out.println("Starting thread " + i + ": [" + start + " - " + partitionLen + "]");
                     Future<DataSet> f = executor.submit(worker);
                     futureList.add(f);
                 }
 
                 //lets get our data back from the threads...
-                int maxFutures = futureList.size();
-
-                Future<DataSet> f = futureList.get(0);
-                try {
-                    //  System.out.println("Waiting for thread 0.");
-                    outputData = f.get();
-                    //   System.out.println("Thread 0 is done. size=" + outputData.getData().length);
-
-                } catch (InterruptedException ex) {
-                    Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE, null, ex);
-                } catch (ExecutionException ex) {
-                    Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE, null, ex);
-                }
-                for (int i = 1; i < maxFutures; i++) {
-                    f = futureList.get(i);
+                boolean first = true;
+                for (Future<DataSet> f : futureList) {
+                    if (first){
+                        try {
+                            outputData = f.get();
+                        } catch (InterruptedException ex) {
+                            System.out.println(ex.toString());
+                        } catch (ExecutionException ex) {
+                            System.out.println(ex.toString());
+                        }
+                        first = false;
+                    }
                     try {
-                        // System.out.println("Waiting on thread " + i);
                         outputData = DataSet.combineDataSet(outputData, f.get());
-                        System.out.println("Thread " + i + " is done. size=" + outputData.getData().length);
-
-
                     } catch (InterruptedException ex) {
                         System.out.println(ex.toString());
                     } catch (ExecutionException ex) {
                         System.out.println(ex.toString());
                     }
                 }
-
                 return null;
             }
 
@@ -1124,11 +1136,12 @@ public class PM25GUI {
                     statusLabel6.setText("");
                     outputWriteWorker.execute();
                 } catch (Exception ex) {
-                    ex.printStackTrace();
+                    System.out.println(ex.toString());
                 }
             }
         };
 
+        /*
         final SwingWorker<Void, Void> interpWorker_old = new SwingWorker<Void, Void>() {
 
             @Override
@@ -1171,7 +1184,7 @@ public class PM25GUI {
                 }
             }
         };
-
+        */
         final SwingWorker<DataSet, Void> processLocsWorker = new SwingWorker<DataSet, Void>() {
 
             @Override
@@ -1457,53 +1470,80 @@ public class PM25GUI {
             @Override
             public Void doInBackground() {
                 rasterData = new DataSet(rasterDataScaled);
+                int maxFutures;
+                int partitionSize = (int) Math.ceil(rasterSetSize / procs);
+                int partitionLen = 0;
+                ArrayList<Future<DataSet>> futureList = new ArrayList<Future<DataSet>>();
+
                 for (int j = 0; j < rasterSetSize; j++) {
                     rasterData.get(j).setX(rasterData.get(j).getX() - xOffset);
                     rasterData.get(j).setY(rasterData.get(j).getY() - yOffset);
                     rasterData.get(j).setX(rasterData.get(j).getX() / xyScale);
                     rasterData.get(j).setY(rasterData.get(j).getY() / xyScale);
                 }
-                for (int i = 0; i < rasterSetSize; i++) {
-                    percentComplete2 = ((double) i / (double) rasterSetSize) * 100;
-                    SwingUtilities.invokeLater(new Runnable() {
 
-                        public void run() {
-                            aniPanelStatusBox.setBackground(Color.yellow);
-                            aniLabelStatus.setText("<html>Building raster data set...<br/>[" + String.format("%2.1f", percentComplete2) + "% complete]");
+
+                for (int i = 0, start = 0; i < procs; i++, start += partitionSize + 1) {
+                    partitionLen = (start + partitionSize >= rasterSetSize) ? rasterSetSize : start + partitionSize + 1;
+                    DataSet ds = DataSet.copyOfRange(rasterData, start, partitionLen);
+                    Callable<DataSet> worker = new CallableIDWRaster(inputTree, ds, nnn, exp);
+                    System.out.println("Starting thread " + i + ": [" + start + " - " + partitionLen + "]");
+                    Future<DataSet> f = executor.submit(worker);
+                    futureList.add(f);
+                }
+
+                maxFutures = futureList.size();
+
+                boolean first = true;
+
+                for (Future<DataSet> f : futureList) {
+                    if (first) {
+                        try {
+                            rasterData = f.get();
+                        } catch (InterruptedException ex) {
+                            Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE, null, ex);
+                        } catch (ExecutionException ex) {
+                            Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE, null, ex);
                         }
-                    });
-                    DataPoint tp = rasterData.get(i);
-                    Neighbor[] nn = inputTree.nearestNeighbors(tp, nnn);
-                    double interpVal = IDW.calc(tp, nn, exp);
-                    tp.setMeasurement(interpVal);
+                        first = false;
+                    }
+                    try {
+                        rasterData = DataSet.combineDataSet(rasterData, f.get());
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (ExecutionException ex) {
+                        Logger.getLogger(PM25GUI.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+
+
                 }
                 return null;
             }
+        
 
             @Override
-            protected void done() {
+        protected void done() {
                 try {
-                    rasterComputed = true;
-                    aniPanelStatusBox.setBackground(Color.green);
-                    aniLabelStatus.setText("Ready to animate!");
-                    aniButton.setText("Play");
-                    showObsSites = false;
-                    statusLabel2.setText("Observation sites hidden.");
-                    aniButton.setEnabled(true);
-                    mapPanel.repaint();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
+                rasterComputed = true;
+                aniPanelStatusBox.setBackground(Color.green);
+                aniLabelStatus.setText("Ready to animate!");
+                aniButton.setText("Play");
+                showObsSites = false;
+                statusLabel2.setText("Observation sites hidden.");
+                aniButton.setEnabled(true);
+                mapPanel.repaint();
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
-        };
-        interpWorker.execute();
-    }
-
-    public void animate() {
+        }
+    };
+        interpWorker.execute ();
+}
+public void animate() {
         final SwingWorker<Void, Void> interpWorker = new SwingWorker<Void, Void>() {
 
             @Override
-            public Void doInBackground() {
+        public Void doInBackground() {
                 // OPTIONAL method only implemented for timeDomain = 4
                 if (timeDomain == 4) {
                     for (animationDay = 0; !animationComplete;) {
@@ -1528,7 +1568,7 @@ public class PM25GUI {
             }
 
             @Override
-            protected void done() {
+        protected void done() {
                 try {
                     aniLabelStatus.setText("Animation complete.");
                     aniButton.setEnabled(true);
@@ -1544,13 +1584,13 @@ public class PM25GUI {
         final SwingWorker<Void, Void> validateWorker = new SwingWorker<Void, Void>() {
 
             @Override
-            public Void doInBackground() {
-                va = LOOCV.calc(inputData, inputTree, validateLabelStatus);
+        public Void doInBackground() {
+                va = LOOCV.calc(inputData, inputTree, validateLabelStatus, executor);
                 return null;
             }
 
             @Override
-            protected void done() {
+        protected void done() {
                 validatePanelStatusBox.setBackground(Color.green);
                 validationComplete = true;
             }
@@ -1563,62 +1603,65 @@ public class PM25GUI {
         final SwingWorker<Void, Void> measureWorker = new SwingWorker<Void, Void>() {
 
             @Override
-            public Void doInBackground() {
+        public Void doInBackground() {
                 LOOCV.errorCalc(inputData, va, measureLabelStatus);
                 return null;
             }
 
             @Override
-            protected void done() {
+        protected void done() {
                 measurePanelStatusBox.setBackground(Color.green);
             }
         };
         measurePanelStatusBox.setBackground(Color.yellow);
         measureWorker.execute();
-    }
+    
+
+
+
+}
 
     class MapPanel extends JPanel {
 
-        public void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            Graphics2D g2d = (Graphics2D) g;
-            if (rasterComputed && animationDay < (rasterData.numYears() * 365)) {
-                int rcss = (int) rasterCellSizeScaled;
-                int j = animationDay;
-                int x1 = (int) (rasterDataScaled.getX(j) - rcss / 2);
-                int y2 = (int) (600 - rasterDataScaled.getY(j) + rcss / 2);
-                for (; j < rasterSetSize; j += 365) {
-                    g.setColor(getRasterColor(rasterData.get(j).getMeasurement()));
-                    g2d.fillRect((int) (rasterDataScaled.getX(j) - rcss / 2), (int) (600 - rasterDataScaled.getY(j) - rcss / 2), rcss, rcss);
-                }
-                int x2 = (int) (rasterDataScaled.getX(j - 365) - rcss / 2) + rcss;
-                int y1 = (int) (600 - rasterDataScaled.getY(j - 365) - rcss / 2);
-                g.setColor(Color.black);
-                g2d.drawRect(x1, y1, (x2 - x1), (y2 - y1));
-                g2d.drawRect(x1 - 1, y1 - 1, (x2 - x1) + 2, (y2 - y1) + 2);
-                if (animate && animationDay != (365 * inputData.numYears() - 1)) {
-                    animationDay++;
-                } else if (animationDay == (365 * inputData.numYears() - 1)) {
-                    animationComplete = true;
-                }
+    public void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2d = (Graphics2D) g;
+        if (rasterComputed && animationDay < (rasterData.numYears() * 365)) {
+            int rcss = (int) rasterCellSizeScaled;
+            int j = animationDay;
+            int x1 = (int) (rasterDataScaled.getX(j) - rcss / 2);
+            int y2 = (int) (600 - rasterDataScaled.getY(j) + rcss / 2);
+            for (; j < rasterSetSize; j += 365) {
+                g.setColor(getRasterColor(rasterData.get(j).getMeasurement()));
+                g2d.fillRect((int) (rasterDataScaled.getX(j) - rcss / 2), (int) (600 - rasterDataScaled.getY(j) - rcss / 2), rcss, rcss);
             }
-            if (bordersProcessed) {
-                g.setColor(Color.BLACK);
-                for (int i = 0; i < numBorderCoords; i++) {
-                    g2d.fillRect((int) stateBorders[i].getX(), (int) (600 - stateBorders[i].getY()), 2, 2);
-                }
+            int x2 = (int) (rasterDataScaled.getX(j - 365) - rcss / 2) + rcss;
+            int y1 = (int) (600 - rasterDataScaled.getY(j - 365) - rcss / 2);
+            g.setColor(Color.black);
+            g2d.drawRect(x1, y1, (x2 - x1), (y2 - y1));
+            g2d.drawRect(x1 - 1, y1 - 1, (x2 - x1) + 2, (y2 - y1) + 2);
+            if (animate && animationDay != (365 * inputData.numYears() - 1)) {
+                animationDay++;
+            } else if (animationDay == (365 * inputData.numYears() - 1)) {
+                animationComplete = true;
             }
-            if (inputProcessed && showObsSites && !animate) {
-                g.setColor(Color.RED);
-                for (int i = 0; i < inputSize; i++) {
-                    Ellipse2D.Double circle = new Ellipse2D.Double(inputDataScaled.get(i).getX(), (600 - inputDataScaled.get(i).getY()), 5, 5);
-                    g2d.fill(circle);
-                }
+        }
+        if (bordersProcessed) {
+            g.setColor(Color.BLACK);
+            for (int i = 0; i < numBorderCoords; i++) {
+                g2d.fillRect((int) stateBorders[i].getX(), (int) (600 - stateBorders[i].getY()), 2, 2);
+            }
+        }
+        if (inputProcessed && showObsSites && !animate) {
+            g.setColor(Color.RED);
+            for (int i = 0; i < inputSize; i++) {
+                Ellipse2D.Double circle = new Ellipse2D.Double(inputDataScaled.get(i).getX(), (600 - inputDataScaled.get(i).getY()), 5, 5);
+                g2d.fill(circle);
             }
         }
     }
-
-    public Color getRasterColor(double meas) {
+}
+public Color getRasterColor(double meas) {
         Color c = new Color(0x00, 0x00, 0xff); // blue indicates error
         if (meas >= 0 && meas < 8.7) {
             if (meas < 5.8) {
